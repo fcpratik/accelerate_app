@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.accelerate.videoproc.app-merged_res-38:/drawable_ic_launcher.xml.flat",
+        "source": "com.accelerate.videoproc.app-main-40:/drawable/ic_launcher.xml"
+    },
+    {
+        "merged": "com.accelerate.videoproc.app-merged_res-38:/drawable_dashboard_cell_bg.xml.flat",
+        "source": "com.accelerate.videoproc.app-main-40:/drawable/dashboard_cell_bg.xml"
+    },
+    {
+        "merged": "com.accelerate.videoproc.app-merged_res-38:/layout_activity_main.xml.flat",
+        "source": "com.accelerate.videoproc.app-main-40:/layout/activity_main.xml"
+    }
+]

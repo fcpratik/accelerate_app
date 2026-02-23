@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Processed frame output display -->
+    <ImageView
+        android:id="@+id/processedFrameView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="fitCenter"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/dashboardScroll"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Hidden CameraX preview -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/cameraPreview"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="invisible"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Mode selector overlay -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/modeCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        app:cardBackgroundColor="#CC1A1A2E"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="6dp">
+            <TextView
+                android:id="@+id/modeLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MODE: BASELINE"
+                android:textColor="#00E5FF"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:layout_gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+            <Button
+                android:id="@+id/btnSwitchMode"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Switch"
+                android:textSize="11sp"
+                android:backgroundTint="#00E5FF"
+                android:textColor="#1A1A2E"
+                android:minWidth="64dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Filter selector overlay -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/filterCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        app:cardBackgroundColor="#CC1A1A2E"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="6dp">
+            <TextView
+                android:id="@+id/filterLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No Filter"
+                android:textColor="#FFAB40"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:layout_gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+            <Button
+                android:id="@+id/btnSwitchFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Filter"
+                android:textSize="11sp"
+                android:backgroundTint="#FFAB40"
+                android:textColor="#1A1A2E"
+                android:minWidth="64dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Scrollable Performance Dashboard -->
+    <ScrollView
+        android:id="@+id/dashboardScroll"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:maxHeight="400dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:background="#F01A1A2E">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- Dashboard Title -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ PERFORMANCE DASHBOARD"
+                android:textColor="#00E5FF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Row 1: FPS and Processing Latency -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp"
+                    android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="FRAME RATE" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvFps" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="-- FPS" android:textColor="#76FF03" android:textSize="22sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp"
+                    android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="PROCESS LATENCY" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvProcessLatency" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="-- ms" android:textColor="#FFD740" android:textSize="22sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 2: End-to-End and Resolution -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp"
+                    android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="END-TO-END" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvEndToEndLatency" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="-- ms" android:textColor="#FF5252" android:textSize="22sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp"
+                    android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="RESOLUTION" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvResolution" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="--x--" android:textColor="#B388FF" android:textSize="22sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 3: SIMD, GPU, Frames -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="SIMD STATUS" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvSimdStatus" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="⬤ INACTIVE" android:textColor="#616161" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginStart="4dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="GPU STATUS" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvGpuStatus" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="⬤ INACTIVE" android:textColor="#616161" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="FRAMES" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvFrameCount" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0" android:textColor="#E0E0E0" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ========= PIPELINE STAGE BREAKDOWN (Hardware Mapping) ========= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔧 PIPELINE STAGE BREAKDOWN"
+                android:textColor="#FFAB40"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Stage 1: YUV Conversion -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/dashboard_cell_bg"
+                android:padding="8dp"
+                android:layout_marginBottom="4dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="3"
+                    android:text="① YUV→ARGB" android:textColor="#80DEEA" android:textSize="11sp" android:fontFamily="monospace" android:textStyle="bold" />
+                <TextView android:id="@+id/tvYuvHardware" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="[CPU Scalar]" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:gravity="center" />
+                <TextView android:id="@+id/tvYuvLatency" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="-- ms" android:textColor="#80DEEA" android:textSize="12sp" android:fontFamily="monospace" android:textStyle="bold" android:gravity="end" />
+            </LinearLayout>
+
+            <!-- Stage 2: Filter Processing -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/dashboard_cell_bg"
+                android:padding="8dp"
+                android:layout_marginBottom="4dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="3"
+                    android:text="② Filter" android:textColor="#CE93D8" android:textSize="11sp" android:fontFamily="monospace" android:textStyle="bold" />
+                <TextView android:id="@+id/tvFilterHardware" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="[CPU Scalar]" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:gravity="center" />
+                <TextView android:id="@+id/tvFilterLatency" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="-- ms" android:textColor="#CE93D8" android:textSize="12sp" android:fontFamily="monospace" android:textStyle="bold" android:gravity="end" />
+            </LinearLayout>
+
+            <!-- Stage 3: Bitmap + Display -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/dashboard_cell_bg"
+                android:padding="8dp"
+                android:layout_marginBottom="4dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="3"
+                    android:text="③ Render" android:textColor="#A5D6A7" android:textSize="11sp" android:fontFamily="monospace" android:textStyle="bold" />
+                <TextView android:id="@+id/tvDisplayHardware" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="[CPU+GPU]" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:gravity="center" />
+                <TextView android:id="@+id/tvDisplayLatency" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2"
+                    android:text="-- ms" android:textColor="#A5D6A7" android:textSize="12sp" android:fontFamily="monospace" android:textStyle="bold" android:gravity="end" />
+            </LinearLayout>
+
+            <!-- Throughput and CPU Load -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp"
+                android:layout_marginTop="2dp">
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="THROUGHPUT" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvThroughput" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="-- MB/s" android:textColor="#40C4FF" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="CPU LOAD" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvCpuLoad" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="--%"  android:textColor="#FFAB40" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row: Thermal, Battery, Throttle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="THERMAL" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvThermal" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="--°C" android:textColor="#FF9100" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginStart="4dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="BATTERY" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvBattery" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="--%"  android:textColor="#69F0AE" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:orientation="vertical" android:background="@drawable/dashboard_cell_bg"
+                    android:padding="10dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="THROTTLE" android:textColor="#80FFFFFF" android:textSize="10sp" android:fontFamily="monospace" />
+                    <TextView android:id="@+id/tvThermalStatus" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="NOMINAL" android:textColor="#69F0AE" android:textSize="14sp" android:textStyle="bold" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Arch info -->
+            <TextView
+                android:id="@+id/tvArchInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Architecture: detecting..."
+                android:textColor="#4DFFFFFF"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
