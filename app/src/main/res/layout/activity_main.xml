@@ -26,12 +26,13 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Mode selector overlay -->
+    <!-- Mode selector — LEFT side, vertical -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/modeCard"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="12dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="12dp"
         app:cardBackgroundColor="#CC1A1A2E"
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
@@ -40,38 +41,40 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:gravity="center_horizontal">
             <TextView
                 android:id="@+id/modeLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="MODE: BASELINE"
                 android:textColor="#00E5FF"
-                android:textSize="13sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
-                android:fontFamily="monospace"
-                android:layout_gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp" />
+                android:fontFamily="monospace" />
             <Button
                 android:id="@+id/btnSwitchMode"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="Switch"
-                android:textSize="11sp"
+                android:layout_height="32dp"
+                android:text="Switch Mode"
+                android:textSize="10sp"
                 android:backgroundTint="#00E5FF"
                 android:textColor="#1A1A2E"
-                android:minWidth="64dp" />
+                android:layout_marginTop="4dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Filter selector overlay -->
+    <!-- Filter selector — RIGHT side, vertical -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/filterCard"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="12dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginTop="12dp"
         app:cardBackgroundColor="#CC1A1A2E"
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
@@ -80,29 +83,30 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:gravity="center_horizontal">
             <TextView
                 android:id="@+id/filterLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="No Filter"
                 android:textColor="#FFAB40"
-                android:textSize="13sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
-                android:fontFamily="monospace"
-                android:layout_gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp" />
+                android:fontFamily="monospace" />
             <Button
                 android:id="@+id/btnSwitchFilter"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="Filter"
-                android:textSize="11sp"
+                android:layout_height="32dp"
+                android:text="Switch Filter"
+                android:textSize="10sp"
                 android:backgroundTint="#FFAB40"
                 android:textColor="#1A1A2E"
-                android:minWidth="64dp" />
+                android:layout_marginTop="4dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
