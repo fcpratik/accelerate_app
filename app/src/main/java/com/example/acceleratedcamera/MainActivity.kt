@@ -120,6 +120,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 
 
 import android.content.Context
@@ -140,6 +142,16 @@ import android.os.Environment
 import android.widget.Toast
 import java.io.File
 import java.io.FileOutputStream
+
+// metrics
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.PowerManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalPermissionsApi::class)
@@ -193,6 +205,7 @@ fun CameraPreview(
     // 2. Create our live pointers!
     val liveProcessingEnabled by rememberUpdatedState(isProcessingEnabled)
     val liveMode by rememberUpdatedState(metrics.currentMode) // <-- New live pointer!
+    val liveFilter by rememberUpdatedState(metrics.currentFilter) // <-- Add Filter pointer
     val liveTakeSnapshot by rememberUpdatedState(takeSnapshot) // <-- Live pointer
     val liveOnSnapshotTaken by rememberUpdatedState(onSnapshotTaken) // <-- Live pointer
 
@@ -216,9 +229,9 @@ fun CameraPreview(
                 if (liveProcessingEnabled) {
                     processingScope.launch {
                         val newBitmap = when (liveMode) {
-                            ProcessingMode.BASELINE -> processFrame(imageProxy)
-                            ProcessingMode.SIMD -> processFrameSIMDPlaceholder(imageProxy)
-                            ProcessingMode.GPU -> processFrameGPUPlaceholder(imageProxy)
+                            ProcessingMode.BASELINE -> processFrame(imageProxy, liveFilter)
+                            ProcessingMode.SIMD -> processFrameSIMD(imageProxy, liveFilter)
+                            ProcessingMode.GPU -> processFrameGPUPlaceholder(imageProxy, liveFilter)
                         }
 
                         val processEndTime = System.currentTimeMillis()
@@ -259,7 +272,7 @@ fun CameraPreview(
         }
     }
 }
-private fun processFrame(imageProxy: ImageProxy): Bitmap {
+private fun processFrame(imageProxy: ImageProxy, filterType: FilterType): Bitmap {
     val originalBitmap = imageProxy.toBitmap()
     val width = originalBitmap.width
     val height = originalBitmap.height
@@ -267,15 +280,13 @@ private fun processFrame(imageProxy: ImageProxy): Bitmap {
     val pixels = IntArray(width * height)
     originalBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-    for (i in pixels.indices) {
-        val pixel = pixels[i]
-
-        val a = android.graphics.Color.alpha(pixel)
-        val r = 255 - android.graphics.Color.red(pixel)
-        val g = 255 - android.graphics.Color.green(pixel)
-        val b = 255 - android.graphics.Color.blue(pixel)
-
-        pixels[i] = android.graphics.Color.argb(a, r, g, b)
+    when (filterType) {
+        FilterType.SEPIA -> ImageFilters.applySepia(pixels, width, height)
+        FilterType.GAUSSIAN_BLUR -> ImageFilters.applyGaussianBlur5x5(pixels, width, height)
+        FilterType.SOBEL_EDGE -> ImageFilters.applySobelEdge(pixels, width, height)
+        FilterType.EMBOSS -> ImageFilters.applyEmboss(pixels, width, height)
+        FilterType.VIGNETTE -> ImageFilters.applyVignette(pixels, width, height)
+        FilterType.FULL_CHAIN -> ImageFilters.applyFilterChain(pixels, width, height)
     }
 
     val processedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -309,6 +320,7 @@ class SettingsRepository(private val context: Context) {
 
     // 2. Define the exact key we use to save our string
     private val MODE_KEY = stringPreferencesKey("processing_mode")
+    private val FILTER_KEY = stringPreferencesKey("filter_type")
 
     // 3. Create a Flow that reads the string and converts it back to our Enum
     val processingModeFlow: Flow<ProcessingMode> = context.dataStore.data.map { preferences ->
@@ -320,22 +332,65 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    val filterTypeFlow: Flow<FilterType> = context.dataStore.data.map { preferences ->
+        val filterString = preferences[FILTER_KEY] ?: FilterType.SEPIA.name
+        try {
+            FilterType.valueOf(filterString)
+        } catch (e: IllegalArgumentException) {
+            FilterType.SEPIA // Fallback
+        }
+    }
+
     // 4. Create a function to save the new mode
     suspend fun saveProcessingMode(mode: ProcessingMode) {
         context.dataStore.edit { preferences ->
             preferences[MODE_KEY] = mode.name
         }
     }
+
+    suspend fun saveFilterType(filter: FilterType) {
+        context.dataStore.edit { preferences ->
+            preferences[FILTER_KEY] = filter.name
+        }
+    }
 }
 
-private fun processFrameSIMDPlaceholder(imageProxy: ImageProxy): Bitmap {
-    // TODO: Implement actual SIMD C++ processing later
-    return processFrame(imageProxy)
+private fun processFrameSIMD(imageProxy: ImageProxy, filterType: FilterType): Bitmap {
+    val originalBitmap = imageProxy.toBitmap()
+    val width = originalBitmap.width
+    val height = originalBitmap.height
+    val pixels = IntArray(width*height)
+    originalBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    
+    when (filterType) {
+        FilterType.SEPIA -> NativeLib.sepiaSimd(pixels, pixels.size)
+        FilterType.GAUSSIAN_BLUR -> NativeLib.gaussianBlurSimd(pixels, width, height)
+        FilterType.SOBEL_EDGE -> NativeLib.sobelEdgeSimd(pixels, width, height)
+        FilterType.EMBOSS -> NativeLib.embossSimd(pixels, width, height)
+        FilterType.VIGNETTE -> NativeLib.vignetteSimd(pixels, width, height)
+        FilterType.FULL_CHAIN -> {
+            NativeLib.sepiaSimd(pixels, pixels.size)
+            NativeLib.gaussianBlurSimd(pixels, width, height)
+            NativeLib.sobelEdgeSimd(pixels, width, height)
+            NativeLib.vignetteSimd(pixels, width, height)
+        }
+    }
+
+    val processedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    processedBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+    val matrix = Matrix()
+    matrix.postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+    val rotatedBitmap = Bitmap.createBitmap(
+        processedBitmap, 0, 0, width, height, matrix, true
+    )
+    imageProxy.close()
+    return rotatedBitmap
 }
 
-private fun processFrameGPUPlaceholder(imageProxy: ImageProxy): Bitmap {
+private fun processFrameGPUPlaceholder(imageProxy: ImageProxy, filterType: FilterType): Bitmap {
     // TODO: Implement actual GPU processing later
-    return processFrame(imageProxy)
+    return processFrame(imageProxy, filterType)
 }
 
 
@@ -356,6 +411,41 @@ fun AppScreenSkeleton(
     }
     // Inject the ViewModel using our factory
     val viewModel: MainViewModel = viewModel(factory = factory)
+
+    val context = LocalContext.current
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                // 1. Calculate battery percentage
+                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val percent = if (scale > 0) (level * 100) / scale else -1
+
+                // 2. Battery temp is returned in tenths of a degree Celsius
+                val temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)
+                val tempC = temp / 10.0f
+
+                // 3. Get Thermal Status (Requires Android Q / API 29+)
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                val thermalState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    powerManager.currentThermalStatus
+                } else {
+                    -1
+                }
+
+                viewModel.updateSystemMetrics(percent, tempC, thermalState)
+            }
+        }
+
+        // Start listening
+        context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        // Stop listening when the UI is disposed
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
+    }
     // 2. Listen to the live data stream
     val metrics by viewModel.metricsState.collectAsState()
     var isProcessingEnabled by remember { mutableStateOf(false) }
@@ -381,6 +471,11 @@ fun AppScreenSkeleton(
             ModeSelector(
                 currentMode = metrics.currentMode,
                 onModeSelected = { viewModel.setProcessingMode(it) }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            FilterSelector(
+                currentFilter = metrics.currentFilter,
+                onFilterSelected = { viewModel.setFilterType(it) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -413,13 +508,74 @@ fun AppScreenSkeleton(
 
 @Composable
 fun MetricsTiles(metrics: CameraMetrics, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text("FPS: ${metrics.fps}", color = Color.White)
-        Text("Frame: ${metrics.frameLatencyMs}ms", color = Color.White)
-        Text("E2E: ${metrics.e2eLatencyMs}ms", color = Color.White)
+    Column(modifier = modifier.fillMaxWidth()) {
+        // First Row: Camera Processing Metrics
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("FPS: ${metrics.fps}", color = Color.White)
+            Text("Frame: ${metrics.frameLatencyMs}ms", color = Color.White)
+            Text("E2E: ${metrics.e2eLatencyMs}ms", color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Second Row: System Hardware Metrics
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // We check if the values are > 0 so we don't show "-1" before the first broadcast arrives
+            Text(
+                text = "Bat: ${if (metrics.batteryPercent > 0) "${metrics.batteryPercent}%" else "--"}",
+                color = Color.Yellow
+            )
+            Text(
+                text = "Temp: ${if (metrics.batteryTempC > 0) "${metrics.batteryTempC}°C" else "--"}",
+                color = Color.Yellow
+            )
+            Text(
+                text = "Thermal: ${if (metrics.thermalState >= 0) metrics.thermalState else "--"}",
+                color = Color.Yellow
+            )
+        }
+
+        //  3rd row
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row( modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween ) {
+            // SIMD indicator: green dot if active
+            Text(
+                text = if (metrics.simdActive) "⚡ SIMD: ON" else "SIMD: OFF",
+                color = if (metrics.simdActive) Color.Green else Color.Gray
+            )
+            // GPU indicator: green dot if active
+            Text(
+                text = if (metrics.gpuActive) "🔥 GPU: ON" else "GPU: OFF",
+                color = if (metrics.gpuActive) Color.Green else Color.Gray
+            )
+            // Speedup ratio
+            if (metrics.baselineLatencyMs > 0 && metrics.frameLatencyMs > 0) {
+                val speedup = metrics.baselineLatencyMs.toFloat() / metrics.frameLatencyMs
+                Text(
+                    text = "Speedup: %.1fx".format(speedup),
+                    color = Color.Yellow
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Active Filter: ${metrics.currentFilter.name}",
+                color = Color.LightGray,
+                fontSize = 12.sp
+            )
+        }
     }
 }
 
@@ -460,6 +616,34 @@ fun Sparkline(data: List<Long>, modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun FilterSelector(
+    currentFilter: FilterType,
+    onFilterSelected: (FilterType) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FilterType.values().forEach { filter ->
+            val animatedBackgroundColor by animateColorAsState(
+                targetValue = if (filter == currentFilter) Color.Cyan else Color.DarkGray,
+                label = "FilterColorAnimation"
+            )
+            Button(
+                onClick = { onFilterSelected(filter) },
+                colors = ButtonDefaults.buttonColors(containerColor = animatedBackgroundColor)
+            ) {
+                Text(
+                    text = filter.name,
+                    color = if (filter == currentFilter) Color.Black else Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ModeSelector(
     currentMode: ProcessingMode,
     onModeSelected: (ProcessingMode) -> Unit,
@@ -470,10 +654,20 @@ fun ModeSelector(
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         ProcessingMode.values().forEach { mode ->
+
+            // 1. Define what the color *should* be
+            val targetBackgroundColor = if (mode == currentMode) Color.Cyan else Color.DarkGray
+
+            // 2. Wrap it in animateColorAsState to create the smooth transition
+            val animatedBackgroundColor by animateColorAsState(
+                targetValue = targetBackgroundColor,
+                label = "ModeColorAnimation"
+            )
+
             Button(
                 onClick = { onModeSelected(mode) },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (mode == currentMode) Color.Cyan else Color.DarkGray
+                    containerColor = animatedBackgroundColor // 3. Use the animated color!
                 )
             ) {
                 Text(

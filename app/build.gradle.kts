@@ -19,6 +19,14 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags += ""
+            }
+        }
+
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+
     }
 
     buildTypes {
@@ -37,6 +45,19 @@ android {
     buildFeatures {
         compose = true
     }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    // NEW: Tell Gradle where our CMakeLists.txt is
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt")
+        version= "3.22.1"
+    } }
+
+
 }
 
 dependencies {

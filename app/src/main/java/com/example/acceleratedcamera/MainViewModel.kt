@@ -8,14 +8,22 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class ProcessingMode { BASELINE, SIMD, GPU }
+enum class FilterType { SEPIA, GAUSSIAN_BLUR, SOBEL_EDGE, EMBOSS, VIGNETTE, FULL_CHAIN }
 
 data class CameraMetrics(
     val currentMode: ProcessingMode = ProcessingMode.BASELINE,
+    val currentFilter: FilterType = FilterType.SEPIA,
     val fps: Int = 0,
     val frameLatencyMs: Long = 0L,
     val e2eLatencyMs: Long = 0L,
     val latencyHistory: List<Long> = emptyList(),
-    val logs: List<String> = emptyList()
+    val logs: List<String> = emptyList(),
+    val batteryPercent: Int = -1,
+    val batteryTempC: Float = -1f,
+    val thermalState: Int = -1,
+    val simdActive: Boolean = false, // NEW
+    val gpuActive: Boolean = false, // NEW (for later)
+    val baselineLatencyMs: Long = 0L // NEW: to calculate speedup
 )
 
 // 1. Pass the repository into the constructor
@@ -32,6 +40,11 @@ class MainViewModel(private val settingsRepository: SettingsRepository) : ViewMo
                 _metricsState.update { it.copy(currentMode = savedMode) }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.filterTypeFlow.collect { savedFilter ->
+                _metricsState.update { it.copy(currentFilter = savedFilter) }
+            }
+        }
     }
 
     fun setProcessingMode(mode: ProcessingMode) {
@@ -41,6 +54,15 @@ class MainViewModel(private val settingsRepository: SettingsRepository) : ViewMo
         // 3. Save the new mode to DataStore in the background
         viewModelScope.launch {
             settingsRepository.saveProcessingMode(mode)
+        }
+    }
+
+    fun setFilterType(filter: FilterType) {
+        _metricsState.update { it.copy(currentFilter = filter) }
+        logEvent("Switched to ${filter.name} filter")
+
+        viewModelScope.launch {
+            settingsRepository.saveFilterType(filter)
         }
     }
 
@@ -67,12 +89,26 @@ class MainViewModel(private val settingsRepository: SettingsRepository) : ViewMo
         _metricsState.update { state ->
             val newHistory = (state.latencyHistory + frameLatency).takeLast(50)
 
+            // Store baseline latency if we're in baseline mode
+            val newBaselineLatency = if(state.currentMode == ProcessingMode.BASELINE) {
+                frameLatency }
+            else { state.baselineLatencyMs }
+
             state.copy(
                 frameLatencyMs = frameLatency,
                 e2eLatencyMs = e2eLatency,
                 latencyHistory = newHistory,
-                fps = calculatedFps
+                fps = calculatedFps,
+                baselineLatencyMs = newBaselineLatency,
+                simdActive = state.currentMode == ProcessingMode.SIMD,
+                gpuActive = state.currentMode == ProcessingMode.GPU
             )
+        }
+    }
+
+    fun updateSystemMetrics(percent: Int, tempC: Float, thermal: Int) {
+        _metricsState.update {
+            it.copy(batteryPercent = percent, batteryTempC = tempC, thermalState = thermal)
         }
     }
 }
