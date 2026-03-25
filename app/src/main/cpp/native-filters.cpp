@@ -3,64 +3,81 @@
 #include <algorithm>
 #include <cmath>
 
+
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_acceleratedcamera_NativeLib_sepiaSimd(JNIEnv *env, jobject, jintArray pixelArray, jint length) {
-  jint *pixels = env->GetIntArrayElements(pixelArray, nullptr);
-  if (!pixels) return;
+    // 1. ZERO-COPY ACCESS: Blocks GC and passes direct memory pointer
+    jint *pixels = (jint*) env->GetPrimitiveArrayCritical(pixelArray, nullptr);
+    if (!pixels) return;
 
-  int simdEnd = length - (length % 4);
-  for (int i = 0; i < simdEnd; i += 4) {
-    uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[i]);
+    uint8_t* bytePixels = reinterpret_cast<uint8_t*>(pixels);
 
-    uint32_t r_arr[4] = {p[2], p[6], p[10], p[14]};
-    uint32_t g_arr[4] = {p[1], p[5], p[9], p[13]};
-    uint32_t b_arr[4] = {p[0], p[4], p[8], p[12]};
+    int simdEnd = length - (length % 16);
 
-    float32x4_t r_f = vcvtq_f32_u32(vld1q_u32(r_arr));
-    float32x4_t g_f = vcvtq_f32_u32(vld1q_u32(g_arr));
-    float32x4_t b_f = vcvtq_f32_u32(vld1q_u32(b_arr));
+    // Load constants into registers once, outside the loop
+    uint8x8_t w_r = vdup_n_u8(77);
+    uint8x8_t w_g = vdup_n_u8(150);
+    uint8x8_t w_b = vdup_n_u8(29);
+    uint16x8_t v_40  = vdupq_n_u16(40);
+    uint16x8_t v_51  = vdupq_n_u16(51);
+    uint8x16_t v_20  = vdupq_n_u8(20);
+    uint16x8_t v_205 = vdupq_n_u16(205);
 
-    float32x4_t const_r = vdupq_n_f32(0.299f);
-    float32x4_t const_g = vdupq_n_f32(0.587f);
-    float32x4_t const_b = vdupq_n_f32(0.114f);
+    for (int i = 0; i < simdEnd; i += 16) {
+        // 2. PREFETCHING: Tell the CPU to fetch memory 128 bytes ahead.
+        // '1' means we intend to write to it, '0' means low temporal locality.
+        __builtin_prefetch(bytePixels + (i * 4) + 128, 1, 0);
 
-    float32x4_t gray = vmulq_f32(r_f, const_r);
-    gray = vmlaq_f32(gray, g_f, const_g);
-    gray = vmlaq_f32(gray, b_f, const_b);
+        uint8x16x4_t argb = vld4q_u8(bytePixels + (i * 4));
 
-    float32x4_t new_r = vaddq_f32(vmulq_f32(gray, vdupq_n_f32(1.2f)), vdupq_n_f32(40.0f));
-    float32x4_t new_g = vaddq_f32(vmulq_f32(gray, vdupq_n_f32(1.0f)), vdupq_n_f32(20.0f));
-    float32x4_t new_b = vmulq_f32(gray, vdupq_n_f32(0.8f));
+        // --- Grayscale ---
+        uint16x8_t gray1 = vmull_u8(vget_low_u8(argb.val[2]), w_r);
+        gray1 = vmlal_u8(gray1, vget_low_u8(argb.val[1]), w_g);
+        gray1 = vmlal_u8(gray1, vget_low_u8(argb.val[0]), w_b);
+        uint8x8_t g8_low = vshrn_n_u16(gray1, 8);
 
-    uint32x4_t r_u = vcvtq_u32_f32(new_r);
-    uint32x4_t g_u = vcvtq_u32_f32(new_g);
-    uint32x4_t b_u = vcvtq_u32_f32(new_b);
+        uint16x8_t gray2 = vmull_u8(vget_high_u8(argb.val[2]), w_r);
+        gray2 = vmlal_u8(gray2, vget_high_u8(argb.val[1]), w_g);
+        gray2 = vmlal_u8(gray2, vget_high_u8(argb.val[0]), w_b);
+        uint8x8_t g8_high = vshrn_n_u16(gray2, 8);
 
-    uint32x4_t max_val = vdupq_n_u32(255);
-    r_u = vminq_u32(r_u, max_val);
-    g_u = vminq_u32(g_u, max_val);
-    b_u = vminq_u32(b_u, max_val);
+        uint8x16_t gray16 = vcombine_u8(g8_low, g8_high);
 
-    uint32_t r_out[4], g_out[4], b_out[4];
-    vst1q_u32(r_out, r_u);
-    vst1q_u32(g_out, g_u);
-    vst1q_u32(b_out, b_u);
+        // --- Red Channel ---
+        uint16x8_t g16_low = vmovl_u8(g8_low);
+        uint16x8_t r16_low = vaddq_u16(g16_low, v_40);
+        r16_low = vaddq_u16(r16_low, vshrq_n_u16(vmulq_u16(g16_low, v_51), 8));
 
-    p[2]=r_out[0]; p[6]=r_out[1]; p[10]=r_out[2]; p[14]=r_out[3];
-    p[1]=g_out[0]; p[5]=g_out[1]; p[9]=g_out[2]; p[13]=g_out[3];
-    p[0]=b_out[0]; p[4]=b_out[1]; p[8]=b_out[2]; p[12]=b_out[3];
-  }
+        uint16x8_t g16_high = vmovl_u8(g8_high);
+        uint16x8_t r16_high = vaddq_u16(g16_high, v_40);
+        r16_high = vaddq_u16(r16_high, vshrq_n_u16(vmulq_u16(g16_high, v_51), 8));
 
-  for (int i = simdEnd; i < length; i++) {
-    uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[i]);
-    float r = p[2], g = p[1], b = p[0];
-    float gray = 0.299f * r + 0.587f * g + 0.114f * b;
-    p[2] = std::min(255.0f, gray * 1.2f + 40.0f);
-    p[1] = std::min(255.0f, gray * 1.0f + 20.0f);
-    p[0] = std::min(255.0f, gray * 0.8f);
-  }
+        argb.val[2] = vcombine_u8(vqmovn_u16(r16_low), vqmovn_u16(r16_high));
 
-  env->ReleaseIntArrayElements(pixelArray, pixels, 0);
+        // --- Green Channel ---
+        argb.val[1] = vqaddq_u8(gray16, v_20);
+
+        // --- Blue Channel ---
+        uint8x8_t b8_low = vshrn_n_u16(vmulq_u16(g16_low, v_205), 8);
+        uint8x8_t b8_high = vshrn_n_u16(vmulq_u16(g16_high, v_205), 8);
+        argb.val[0] = vcombine_u8(b8_low, b8_high);
+
+        vst4q_u8(bytePixels + (i * 4), argb);
+    }
+
+    // Tail loop
+    for (int i = simdEnd; i < length; i++) {
+        uint8_t* p = bytePixels + (i * 4);
+        float r = p[2], g = p[1], b = p[0];
+        float gray = 0.299f * r + 0.587f * g + 0.114f * b;
+        p[2] = std::min(255.0f, gray * 1.2f + 40.0f);
+        p[1] = std::min(255.0f, gray * 1.0f + 20.0f);
+        p[0] = std::min(255.0f, gray * 0.8f);
+    }
+
+    // 3. RELEASE CRITICAL: Must be called to unpause the Java Garbage Collector
+    env->ReleasePrimitiveArrayCritical(pixelArray, pixels, 0);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -467,55 +484,55 @@ Java_com_example_acceleratedcamera_NativeLib_embossSimd(
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_acceleratedcamera_NativeLib_vignetteSimd(JNIEnv *env, jobject, jintArray pixelArray, jint width, jint height) {
-  jint *pixels = env->GetIntArrayElements(pixelArray, nullptr);
-  if (!pixels) return;
+    jint *pixels = env->GetIntArrayElements(pixelArray, nullptr);
+    if (!pixels) return;
 
-  float centerX = width / 2.0f;
-  float centerY = height / 2.0f;
-  float maxDist = std::sqrt(centerX * centerX + centerY * centerY);
-  float maxDistInv = 1.0f / maxDist;
-  int simdEnd = width - (width % 4);
+    float centerX = width / 2.0f;
+    float centerY = height / 2.0f;
+    float maxDist = std::sqrt(centerX * centerX + centerY * centerY);
+    float maxDistInv = 1.0f / maxDist;
+    int simdEnd = width - (width % 4);
 
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < simdEnd; x += 4) {
-      float dx[4] = { x - centerX, x + 1 - centerX, x + 2 - centerX, x + 3 - centerX };
-      float dy[4] = { y - centerY, y - centerY, y - centerY, y - centerY };
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < simdEnd; x += 4) {
+            float dx[4] = { x - centerX, x + 1 - centerX, x + 2 - centerX, x + 3 - centerX };
+            float dy[4] = { y - centerY, y - centerY, y - centerY, y - centerY };
 
-      float32x4_t dx_vec = vld1q_f32(dx);
-      float32x4_t dy_vec = vld1q_f32(dy);
-      float32x4_t distSq = vaddq_f32(vmulq_f32(dx_vec, dx_vec), vmulq_f32(dy_vec, dy_vec));
+            float32x4_t dx_vec = vld1q_f32(dx);
+            float32x4_t dy_vec = vld1q_f32(dy);
+            float32x4_t distSq = vaddq_f32(vmulq_f32(dx_vec, dx_vec), vmulq_f32(dy_vec, dy_vec));
 
-      float32x4_t invSqrt = vrsqrteq_f32(distSq);
-      invSqrt = vmulq_f32(vrsqrtsq_f32(vmulq_f32(distSq, invSqrt), invSqrt), invSqrt);
-      float32x4_t dist = vmulq_f32(distSq, invSqrt);
+            float32x4_t invSqrt = vrsqrteq_f32(distSq);
+            invSqrt = vmulq_f32(vrsqrtsq_f32(vmulq_f32(distSq, invSqrt), invSqrt), invSqrt);
+            float32x4_t dist = vmulq_f32(distSq, invSqrt);
 
-      float32x4_t maxDistInv_vec = vdupq_n_f32(maxDistInv);
-      float32x4_t factor = vsubq_f32(vdupq_n_f32(1.0f), vmulq_f32(dist, maxDistInv_vec));
+            float32x4_t maxDistInv_vec = vdupq_n_f32(maxDistInv);
+            float32x4_t factor = vsubq_f32(vdupq_n_f32(1.0f), vmulq_f32(dist, maxDistInv_vec));
 
-      factor = vmaxq_f32(vdupq_n_f32(0.0f), vminq_f32(vdupq_n_f32(1.0f), factor));
+            factor = vmaxq_f32(vdupq_n_f32(0.0f), vminq_f32(vdupq_n_f32(1.0f), factor));
 
-      float factor_arr[4];
-      vst1q_f32(factor_arr, factor);
+            float factor_arr[4];
+            vst1q_f32(factor_arr, factor);
 
-      for (int i = 0; i < 4; i++) {
-        uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[y * width + x + i]);
-        p[2] = p[2] * factor_arr[i];
-        p[1] = p[1] * factor_arr[i];
-        p[0] = p[0] * factor_arr[i];
-      }
+            for (int i = 0; i < 4; i++) {
+                uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[y * width + x + i]);
+                p[2] = p[2] * factor_arr[i];
+                p[1] = p[1] * factor_arr[i];
+                p[0] = p[0] * factor_arr[i];
+            }
+        }
+
+        for (int x = simdEnd; x < width; x++) {
+            float dx = x - centerX;
+            float dy = y - centerY;
+            float dist = std::sqrt(dx*dx + dy*dy);
+            float factor = std::max(0.0f, std::min(1.0f, 1.0f - dist * maxDistInv));
+            uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[y * width + x]);
+            p[2] = p[2] * factor;
+            p[1] = p[1] * factor;
+            p[0] = p[0] * factor;
+        }
     }
 
-    for (int x = simdEnd; x < width; x++) {
-      float dx = x - centerX;
-      float dy = y - centerY;
-      float dist = std::sqrt(dx*dx + dy*dy);
-      float factor = std::max(0.0f, std::min(1.0f, 1.0f - dist * maxDistInv));
-      uint8_t* p = reinterpret_cast<uint8_t*>(&pixels[y * width + x]);
-      p[2] = p[2] * factor;
-      p[1] = p[1] * factor;
-      p[0] = p[0] * factor;
-    }
-  }
-
-  env->ReleaseIntArrayElements(pixelArray, pixels, 0);
+    env->ReleaseIntArrayElements(pixelArray, pixels, 0);
 }
