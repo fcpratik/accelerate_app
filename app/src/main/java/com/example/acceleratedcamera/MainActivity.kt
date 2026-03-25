@@ -361,7 +361,7 @@ private fun processFrameSIMD(imageProxy: ImageProxy, filterType: FilterType): Bi
     val height = originalBitmap.height
     val pixels = IntArray(width*height)
     originalBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-    
+
     when (filterType) {
         FilterType.SEPIA -> NativeLib.sepiaSimd(pixels, pixels.size)
         FilterType.GAUSSIAN_BLUR -> NativeLib.gaussianBlurSimd(pixels, width, height)

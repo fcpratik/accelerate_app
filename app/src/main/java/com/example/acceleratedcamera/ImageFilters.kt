@@ -91,7 +91,7 @@ object ImageFilters {
                         val g = Color.green(neighbor)
                         val b = Color.blue(neighbor)
                         val gray = (0.299f * r + 0.587f * g + 0.114f * b).toInt()
-                        
+
                         val wX = gxKernel[ky + 1][kx + 1]
                         val wY = gyKernel[ky + 1][kx + 1]
 
@@ -150,7 +150,7 @@ object ImageFilters {
             for (x in 0 until width) {
                 val dist = sqrt(((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY)).toDouble())
                 val factor = (1.0 - (dist / maxDist) * strength).coerceIn(0.0, 1.0)
-                
+
                 val idx = y * width + x
                 val pixel = pixels[idx]
                 val a = Color.alpha(pixel)
