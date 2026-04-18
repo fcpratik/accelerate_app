@@ -16,4 +16,5 @@ object NativeLib {
     external fun sobelEdgeSimd(pixels: IntArray, width: Int, height: Int)
     external fun embossSimd(pixels: IntArray, width: Int, height: Int)
     external fun vignetteSimd(pixels: IntArray, width: Int, height: Int)
+    external fun comicSimd(pixels: IntArray, width: Int, height: Int)
 }

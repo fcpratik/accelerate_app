@@ -1,0 +1,51 @@
+#version 310 es
+
+precision highp float;
+
+// 2D Sobel edge detection: one thread per pixel
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) readonly  buffer InputBuffer  { uint inPixels[];  };
+layout(std430, binding = 1) writeonly buffer OutputBuffer { uint outPixels[]; };
+
+uniform int uWidth;
+uniform int uHeight;
+
+// BT.601 grayscale luma of a packed ARGB pixel
+int luma(uint pixel) {
+    int r = int((pixel >> 16u) & 0xFFu);
+    int g = int((pixel >>  8u) & 0xFFu);
+    int b = int( pixel         & 0xFFu);
+    // Y = 0.299R + 0.587G + 0.114B  (scaled by 1000)
+    return (299 * r + 587 * g + 114 * b) / 1000;
+}
+
+void main() {
+    int gx = int(gl_GlobalInvocationID.x);
+    int gy = int(gl_GlobalInvocationID.y);
+
+    if (gx >= uWidth || gy >= uHeight) return;
+
+    // Sample 3x3 neighborhood grayscale values
+    int tl = luma(inPixels[clamp(gy-1,0,uHeight-1) * uWidth + clamp(gx-1,0,uWidth-1)]);
+    int tc = luma(inPixels[clamp(gy-1,0,uHeight-1) * uWidth + gx]);
+    int tr = luma(inPixels[clamp(gy-1,0,uHeight-1) * uWidth + clamp(gx+1,0,uWidth-1)]);
+    int ml = luma(inPixels[gy * uWidth + clamp(gx-1,0,uWidth-1)]);
+    int mr = luma(inPixels[gy * uWidth + clamp(gx+1,0,uWidth-1)]);
+    int bl = luma(inPixels[clamp(gy+1,0,uHeight-1) * uWidth + clamp(gx-1,0,uWidth-1)]);
+    int bc = luma(inPixels[clamp(gy+1,0,uHeight-1) * uWidth + gx]);
+    int br = luma(inPixels[clamp(gy+1,0,uHeight-1) * uWidth + clamp(gx+1,0,uWidth-1)]);
+
+    // Sobel Gx: [-1,0,1; -2,0,2; -1,0,1]
+    int sobelX = -tl + tr - 2*ml + 2*mr - bl + br;
+    // Sobel Gy: [-1,-2,-1; 0,0,0; 1,2,1]
+    int sobelY = -tl - 2*tc - tr + bl + 2*bc + br;
+
+    float mag = sqrt(float(sobelX * sobelX + sobelY * sobelY));
+
+    // Threshold at ~128: white edge on black background
+    uint edge = (mag > 128.0) ? 255u : 0u;
+
+    uint a = (inPixels[gy * uWidth + gx] >> 24u) & 0xFFu;
+    outPixels[gy * uWidth + gx] = (a << 24u) | (edge << 16u) | (edge << 8u) | edge;
+}

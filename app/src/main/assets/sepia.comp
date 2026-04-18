@@ -1,0 +1,38 @@
+#version 310 es
+
+// 1D in-place sepia shader: one thread per pixel, 256 threads per work group
+layout(local_size_x = 256) in;
+
+// Single SSBO: read-modify-write in place
+layout(std430, binding = 0) buffer PixelBuffer {
+    uint pixels[];
+};
+
+uniform int uPixelCount;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= uint(uPixelCount)) return;
+
+    uint pixel = pixels[idx];
+
+    // Unpack ARGB_8888
+    uint a = (pixel >> 24u) & 0xFFu;
+    uint r = (pixel >> 16u) & 0xFFu;
+    uint g = (pixel >>  8u) & 0xFFu;
+    uint b =  pixel         & 0xFFu;
+
+    // BT.601 luma (scaled by 1000 to avoid float, then /1000)
+    // Y = 0.299*R + 0.587*G + 0.114*B
+    uint Y = (299u * r + 587u * g + 114u * b) / 1000u;
+
+    // Sepia mapping (same coefficients as Kotlin baseline):
+    // outR = clamp(Y * 112 / 100 + 66, 0, 255)
+    // outG = clamp(Y * 88  / 100 + 45, 0, 255)
+    // outB = clamp(Y * 70  / 100 + 20, 0, 255)
+    uint outR = min(Y * 112u / 100u + 66u, 255u);
+    uint outG = min(Y * 88u  / 100u + 45u, 255u);
+    uint outB = min(Y * 70u  / 100u + 20u, 255u);
+
+    pixels[idx] = (a << 24u) | (outR << 16u) | (outG << 8u) | outB;
+}

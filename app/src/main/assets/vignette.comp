@@ -1,0 +1,42 @@
+#version 310 es
+
+precision highp float;
+
+// 2D Vignette: radial darkening from center
+// In-place: single SSBO (read-modify-write)
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) buffer PixelBuffer { uint pixels[]; };
+
+uniform int uWidth;
+uniform int uHeight;
+
+void main() {
+    int gx = int(gl_GlobalInvocationID.x);
+    int gy = int(gl_GlobalInvocationID.y);
+
+    if (gx >= uWidth || gy >= uHeight) return;
+
+    // Normalized distance from center [0.0, ~1.0+]
+    float cx = float(uWidth)  * 0.5;
+    float cy = float(uHeight) * 0.5;
+    float dx = (float(gx) - cx) / cx;   // [-1, 1]
+    float dy = (float(gy) - cy) / cy;   // [-1, 1]
+    float dist = sqrt(dx * dx + dy * dy) / sqrt(2.0); // normalize to [0, 1]
+
+    // Vignette strength: 0.8 at center, 0.0 at corners
+    // factor = 1.0 - smoothstep(0.4, 1.0, dist)
+    float t = clamp((dist - 0.4) / (1.0 - 0.4), 0.0, 1.0);
+    float factor = 1.0 - (t * t * (3.0 - 2.0 * t)); // smoothstep
+
+    uint pixel = pixels[gy * uWidth + gx];
+    uint a = (pixel >> 24u) & 0xFFu;
+    float r = float((pixel >> 16u) & 0xFFu) * factor;
+    float g = float((pixel >>  8u) & 0xFFu) * factor;
+    float b = float( pixel         & 0xFFu)  * factor;
+
+    pixels[gy * uWidth + gx] = (a << 24u)
+        | (uint(clamp(r, 0.0, 255.0)) << 16u)
+        | (uint(clamp(g, 0.0, 255.0)) <<  8u)
+        |  uint(clamp(b, 0.0, 255.0));
+}

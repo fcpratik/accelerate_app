@@ -1,0 +1,98 @@
+#version 310 es
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) readonly buffer InputBuffer  { uint inPixels[];  };
+layout(std430, binding = 1) writeonly buffer OutputBuffer { uint outPixels[]; };
+
+uniform int uWidth;
+uniform int uHeight;
+
+vec3 getRGB(int x, int y) {
+    x = clamp(x, 0, uWidth - 1);
+    y = clamp(y, 0, uHeight - 1);
+    uint p = inPixels[y * uWidth + x];
+    float r = float((p >> 16u) & 0xFFu);
+    float g = float((p >> 8u) & 0xFFu);
+    float b = float(p & 0xFFu);
+    return vec3(r, g, b);
+}
+
+float getLuma(vec3 rgb) {
+    return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+}
+
+float getSobel(int cx, int cy) {
+    float sumX = 0.0;
+    float sumY = 0.0;
+    
+    float l00 = getLuma(getRGB(cx - 1, cy - 1));
+    float l10 = getLuma(getRGB(cx,     cy - 1));
+    float l20 = getLuma(getRGB(cx + 1, cy - 1));
+    
+    float l01 = getLuma(getRGB(cx - 1, cy));
+    float l21 = getLuma(getRGB(cx + 1, cy));
+    
+    float l02 = getLuma(getRGB(cx - 1, cy + 1));
+    float l12 = getLuma(getRGB(cx,     cy + 1));
+    float l22 = getLuma(getRGB(cx + 1, cy + 1));
+    
+    sumX = -l00 + l20 - 2.0*l01 + 2.0*l21 - l02 + l22;
+    sumY = -l00 - 2.0*l10 - l20 + l02 + 2.0*l12 + l22;
+    
+    return sqrt(sumX * sumX + sumY * sumY);
+}
+
+void getMeanVar(int cx, int cy, int startX, int endX, int startY, int endY, out vec3 mean, out float variance) {
+    vec3 sum = vec3(0.0);
+    vec3 sumSq = vec3(0.0);
+    
+    for (int ky = startY; ky <= endY; ky++) {
+        for (int kx = startX; kx <= endX; kx++) {
+            vec3 c = getRGB(cx + kx, cy + ky);
+            sum += c;
+            sumSq += c * c;
+        }
+    }
+    
+    mean = sum / 9.0;
+    vec3 varColor = (sumSq / 9.0) - (mean * mean);
+    variance = varColor.r + varColor.g + varColor.b;
+}
+
+void main() {
+    int gx = int(gl_GlobalInvocationID.x);
+    int gy = int(gl_GlobalInvocationID.y);
+
+    if (gx >= uWidth || gy >= uHeight) return;
+
+    uint originalPixel = inPixels[gy * uWidth + gx];
+    uint a = (originalPixel >> 24u) & 0xFFu;
+
+    float mag = getSobel(gx, gy);
+    if (mag > 45.0) {
+        outPixels[gy * uWidth + gx] = (a << 24u) | 0x000000u;
+        return;
+    }
+
+    vec3 mean1, mean2, mean3, mean4;
+    float var1, var2, var3, var4;
+
+    getMeanVar(gx, gy, -2, 0, -2, 0, mean1, var1);
+    getMeanVar(gx, gy,  0, 2, -2, 0, mean2, var2);
+    getMeanVar(gx, gy, -2, 0,  0, 2, mean3, var3);
+    getMeanVar(gx, gy,  0, 2,  0, 2, mean4, var4);
+    
+    float minVar = var1;
+    vec3 bestMean = mean1;
+    
+    if (var2 < minVar) { minVar = var2; bestMean = mean2; }
+    if (var3 < minVar) { minVar = var3; bestMean = mean3; }
+    if (var4 < minVar) { minVar = var4; bestMean = mean4; }
+    
+    uint outR = uint(clamp(floor(bestMean.r / 64.0) * 64.0 + 32.0, 0.0, 255.0));
+    uint outG = uint(clamp(floor(bestMean.g / 64.0) * 64.0 + 32.0, 0.0, 255.0));
+    uint outB = uint(clamp(floor(bestMean.b / 64.0) * 64.0 + 32.0, 0.0, 255.0));
+    
+    outPixels[gy * uWidth + gx] = (a << 24u) | (outR << 16u) | (outG << 8u) | outB;
+}

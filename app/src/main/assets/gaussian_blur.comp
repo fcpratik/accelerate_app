@@ -1,0 +1,57 @@
+#version 310 es
+
+// 2D Gaussian blur: 5x5 kernel, separable convolution done in one pass for GPU simplicity
+// Each thread processes one pixel (gx, gy)
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// input SSBO (read-only), output SSBO (write-only)
+layout(std430, binding = 0) readonly buffer InputBuffer  { uint inPixels[];  };
+layout(std430, binding = 1) writeonly buffer OutputBuffer { uint outPixels[]; };
+
+uniform int uWidth;
+uniform int uHeight;
+
+// 5x5 Gaussian kernel weights (summing to 273)
+// [1, 4, 7, 4, 1]
+// [4,16,26,16, 4]
+// [7,26,41,26, 7]
+// [4,16,26,16, 4]
+// [1, 4, 7, 4, 1]
+const int kernel[25] = int[25](
+     1,  4,  7,  4,  1,
+     4, 16, 26, 16,  4,
+     7, 26, 41, 26,  7,
+     4, 16, 26, 16,  4,
+     1,  4,  7,  4,  1
+);
+
+void main() {
+    int gx = int(gl_GlobalInvocationID.x);
+    int gy = int(gl_GlobalInvocationID.y);
+
+    if (gx >= uWidth || gy >= uHeight) return;
+
+    int sumR = 0, sumG = 0, sumB = 0;
+    uint a = 0u;
+
+    for (int ky = -2; ky <= 2; ky++) {
+        for (int kx = -2; kx <= 2; kx++) {
+            int nx = clamp(gx + kx, 0, uWidth  - 1);
+            int ny = clamp(gy + ky, 0, uHeight - 1);
+            int kidx = (ky + 2) * 5 + (kx + 2);
+            int w = kernel[kidx];
+
+            uint pixel = inPixels[ny * uWidth + nx];
+            a = (pixel >> 24u) & 0xFFu;
+            sumR += int((pixel >> 16u) & 0xFFu) * w;
+            sumG += int((pixel >>  8u) & 0xFFu) * w;
+            sumB += int( pixel         & 0xFFu)  * w;
+        }
+    }
+
+    uint outR = uint(clamp(sumR / 273, 0, 255));
+    uint outG = uint(clamp(sumG / 273, 0, 255));
+    uint outB = uint(clamp(sumB / 273, 0, 255));
+
+    outPixels[gy * uWidth + gx] = (a << 24u) | (outR << 16u) | (outG << 8u) | outB;
+}

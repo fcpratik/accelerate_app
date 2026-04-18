@@ -1,0 +1,51 @@
+#version 310 es
+
+// 2D Emboss effect: kernel [-2,-1,0; -1,1,1; 0,1,2] + bias 128
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) readonly  buffer InputBuffer  { uint inPixels[];  };
+layout(std430, binding = 1) writeonly buffer OutputBuffer { uint outPixels[]; };
+
+uniform int uWidth;
+uniform int uHeight;
+
+// Emboss kernel weights (row-major, 3x3):
+// [-2,-1, 0]
+// [-1, 1, 1]
+// [ 0, 1, 2]
+const int kWeights[9] = int[9](-2, -1, 0, -1, 1, 1, 0, 1, 2);
+
+int sampleChannel(uint pixel, int channel) {
+    // channel: 0=R, 1=G, 2=B
+    if (channel == 0) return int((pixel >> 16u) & 0xFFu);
+    if (channel == 1) return int((pixel >>  8u) & 0xFFu);
+    return int(pixel & 0xFFu);
+}
+
+void main() {
+    int gx = int(gl_GlobalInvocationID.x);
+    int gy = int(gl_GlobalInvocationID.y);
+
+    if (gx >= uWidth || gy >= uHeight) return;
+
+    int accR = 0, accG = 0, accB = 0;
+
+    for (int ky = -1; ky <= 1; ky++) {
+        for (int kx = -1; kx <= 1; kx++) {
+            int nx = clamp(gx + kx, 0, uWidth  - 1);
+            int ny = clamp(gy + ky, 0, uHeight - 1);
+            int w  = kWeights[(ky + 1) * 3 + (kx + 1)];
+            uint pixel = inPixels[ny * uWidth + nx];
+            accR += sampleChannel(pixel, 0) * w;
+            accG += sampleChannel(pixel, 1) * w;
+            accB += sampleChannel(pixel, 2) * w;
+        }
+    }
+
+    uint outR = uint(clamp(accR + 128, 0, 255));
+    uint outG = uint(clamp(accG + 128, 0, 255));
+    uint outB = uint(clamp(accB + 128, 0, 255));
+
+    uint a = (inPixels[gy * uWidth + gx] >> 24u) & 0xFFu;
+    outPixels[gy * uWidth + gx] = (a << 24u) | (outR << 16u) | (outG << 8u) | outB;
+}
